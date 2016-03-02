@@ -53,7 +53,7 @@ def parse_msg_sender(filename, sender_known=True):
 
     If you don't want to consider the sender's name in your classification
     algorithm:
-    >>> parse_msg_sender(filename, False)
+    # >>> parse_msg_sender(filename, False)
     """
     sender, msg = None, None
     if os.path.isfile(filename) and not is_sender_filename(filename):

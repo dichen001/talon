@@ -47,7 +47,7 @@ BAD_SENDER_NAMES = [
     'hotmail', 'gmail', 'yandex', 'mail', 'yahoo', 'mailgun', 'mailgunhq',
     'example',
     # first level domains
-    'com', 'org', 'net', 'ru',
+    'com', 'org', 'net', 'ru', 'edu', 'gov', 'cn', 'me',
     # bad words
     'mailto'
     ]
