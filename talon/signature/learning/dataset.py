@@ -17,14 +17,18 @@ suffix which should be `_sender`.
 """
 
 import os
+import email
 import regex as re
 
+from talon import quotations
 from talon.signature.constants import SIGNATURE_MAX_LINES
 from talon.signature.learning.featurespace import build_pattern, features
 
 
 SENDER_SUFFIX = '_sender'
 BODY_SUFFIX = '_body'
+RESULT_SUFFIX = '_results'
+PREDICT_SUFFIX = '_predicts'
 
 SIGNATURE_ANNOTATION = '#sig#'
 REPLY_ANNOTATION = '#reply#'
@@ -41,6 +45,14 @@ def build_sender_filename(msg_filename):
     """By the message filename gives expected sender's filename."""
     return msg_filename[:-len(BODY_SUFFIX)] + SENDER_SUFFIX
 
+def build_result_filename(msg_filename):
+    """By the message filename gives expected sender's filename."""
+    return msg_filename[:-len(BODY_SUFFIX)] + RESULT_SUFFIX
+
+def build_predict_filename(msg_filename):
+    """By the message filename gives expected sender's filename."""
+    name = '/'.join(msg_filename.split('/')[:-1])
+    return name[:-len(BODY_SUFFIX)] + PREDICT_SUFFIX
 
 def parse_msg_sender(filename, sender_known=True):
     """Given a filename returns the sender and the message.
@@ -139,10 +151,23 @@ def build_extraction_dataset(folder, dataset_filename,
         os.remove(dataset_filename)
     with open(dataset_filename, 'a') as dataset:
         for filename in os.listdir(folder):
+            #print filename
             filename = os.path.join(folder, filename)
             sender, msg = parse_msg_sender(filename, sender_known)
             if not sender or not msg:
+                #print 'Empty: ' + filename
                 continue
+            ## use 2 lines below to pre-process emails to get the body and sender file for later Email Extraction.
+            # msg = process(msg,filename,sender)
+            # continue
+
+            # ### Use 2 lines below to save the marked signature part into '*_result' file.
+            # ##
+            # result_filename = build_result_filename(filename)
+            # if os.path.exists(result_filename):
+            #     os.remove(result_filename)
+            # with open(result_filename, 'a') as result:
+            # ##
             lines = msg.splitlines()
             for i in xrange(1, min(SIGNATURE_MAX_LINES,
                                    len(lines)) + 1):
@@ -152,10 +177,45 @@ def build_extraction_dataset(folder, dataset_filename,
                         SIGNATURE_ANNOTATION:
                     label = 1
                     line = line[len(SIGNATURE_ANNOTATION):]
+                    # ##
+                    # result.write(line + '\n')
+                    # ##
                 elif line[:len(REPLY_ANNOTATION)] == REPLY_ANNOTATION:
                     line = line[len(REPLY_ANNOTATION):]
-
                 X = build_pattern(line, features(sender))
                 X.append(label)
                 labeled_pattern = ','.join([str(e) for e in X])
                 dataset.write(labeled_pattern + '\n')
+
+# to remove header details and the forward message from the emails, only return the reply body.
+def process(msg,filename,sender):
+    content = email.message_from_string(msg)
+    body = []
+    if content.is_multipart():
+        for payload in content.get_payload():
+            body.append(payload.get_payload())
+    else:
+        body.append(content.get_payload())
+    if body is None: # discard mail without body
+        print filename + ': body is None!'
+    reply = quotations.extract_from(body[0], 'text/plain')
+    #print filename + ":\n" + reply
+    if re.search('\d+\.$',filename) is not None:
+        reply_filename = re.sub('\d+\.$', change_name_reply, filename)
+        f = open(reply_filename, 'w')
+        f.write(reply.strip())
+        f.close()
+        sender_filename = re.sub('\d+\.$', change_name_sender, filename)
+        f = open(sender_filename, 'w')
+        f.write(sender.strip())
+        f.close()
+        print filename
+    return reply
+
+def change_name_reply(matchobj):
+    if matchobj.group(0)[-1]=='.':
+        return matchobj.group(0)[:-1] + '_body'
+
+def change_name_sender(matchobj):
+    if matchobj.group(0)[-1]=='.':
+        return matchobj.group(0)[:-1] + '_sender'

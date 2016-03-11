@@ -7,15 +7,26 @@ Also, the marked file should be in the format as the files in folder.
 
 FYI, refer to /talon/signature/learning/dataset.py
 """
-import dataset as d
 import os
-from test import ROOT_DIR
-
+import talon
+from pathlib import Path
+Path('C:\Program Files').parent
+import dataset as d
+import evaluate as e
+# from test import ROOT_DIR
+DIR = os.path.abspath(os.path.dirname(__file__))
+#ROOT_DIR = os.path.join(DIR,'../../..')
+ROOT_DIR = '/'.join(DIR.split('/')[:-3])
 base_dir = ROOT_DIR + '/tests/fixtures/signature'
-folder = base_dir + '/emails/P'
+train_folder = base_dir + '/emails/train'
+test_folder = base_dir + '/emails/test2'
 # change relatively to where you store your marked training emails.
 dataset_filename = base_dir + '/tmp/extraction.data'
+performance_filename = base_dir + '/tmp/performance2'
 
 #folder = '/Users/Jack/Dropbox/Github/talon/tests/fixtures/signature/emails/P'
 #dataset_filename = '/Users/Jack/Dropbox/Github/talon/tests/fixtures/signature/tmp/extraction.data'
-d.build_extraction_dataset(folder, dataset_filename, 1)
+d.build_extraction_dataset(train_folder, dataset_filename, 1)
+
+talon.init()
+e.predict(test_folder,performance_filename)
