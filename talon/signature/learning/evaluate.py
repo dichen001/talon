@@ -1,19 +1,7 @@
 # -*- coding: utf-8 -*-
 
-"""The module's functions build datasets to train/assess classifiers.
-
-For signature detection the input should be a folder with two directories
-that contain emails with and without signatures.
-
-For signature extraction the input should be a folder with annotated emails.
-To indicate that a line is a signature line use #sig# at the start of the line.
-
-A sender of an email could be specified in the same file as
-the message body e.g. when .eml format is used or in a separate file.
-
-In the letter case it is assumed that a body filename ends with the `_body`
-suffix and the corresponding sender file has the same name except for the
-suffix which should be `_sender`.
+"""
+To evaluate the prediction results.
 """
 
 import os
@@ -30,6 +18,7 @@ from talon import quotations
 from talon.signature.constants import SIGNATURE_MAX_LINES
 from talon.signature.learning.featurespace import build_pattern, features
 
+RESULT_DELIMITER = ' -%%%%- '
 
 SENDER_SUFFIX = '_sender'
 BODY_SUFFIX = '_body'
@@ -144,24 +133,54 @@ def predict(folder, performance_filename,
                     pf.write(ml_sig)
 
                 diff_brute = difflib.SequenceMatcher(None,true,brute_sig)
-                label_brute = -1                # -1: predict different from mark
-
-                if diff_brute.ratio() > 0:
-                    diff_results1 = ''
-                    if true == '':
-                        label_brute = 0         # 0: no sig. no predict.
-                    else:
-                        label_brute = round(diff_brute.ratio(),3)         # 1: has sig. right predict.
-                if diff_brute.ratio() != 1.0:
-                    diff_results1 = tmp_f+':\n##True:\n'+true+'\n##Brute:\n'+brute_sig
                 diff_ml = difflib.SequenceMatcher(None,true,ml_sig)
-                label_ml = -1
-                if diff_ml.ratio() > 0 :
-                    diff_results2 = ''
-                    if true =='':
+                '''
+                0: not marked, not predicted
+                >0: marked, predicted
+                -2: not marked, predicted
+                -1: marked, not predicted
+                '''
+                if true == '':
+                    if diff_brute.ratio() > 0:
+                        label_brute = 0
+                    else:
+                        label_brute = -2
+                    if diff_ml.ratio() > 0:
                         label_ml = 0
                     else:
-                        label_ml = round(diff_ml.ratio(),3)
+                        label_ml = -2
+                else:
+                    if diff_brute.ratio() > 0:
+                        label_brute = diff_brute.ratio()
+                    else:
+                        label_brute = -1
+                    if diff_ml.ratio() > 0:
+                        label_ml = diff_ml.ratio()
+                    else:
+                        label_ml = -1
+
+
+                # if diff_brute.ratio() > 0:
+                #     diff_results1 = ''
+                #     if true == '':
+                #         label_brute = 0         # 0: no sig. no predict.
+                #     else:
+                #         label_brute = round(diff_brute.ratio(),3)         # 1: has sig. right predict.
+                # if diff_brute.ratio() != 1.0:
+                #     diff_results1 = tmp_f+':\n##True:\n'+true+'\n##Brute:\n'+brute_sig
+                # diff_ml = difflib.SequenceMatcher(None,true,ml_sig)
+                # label_ml = -1
+                # if diff_ml.ratio() > 0 :
+                #     diff_results2 = ''
+                #     if true =='':
+                #         label_ml = 0
+                #     else:
+                #         label_ml = round(diff_ml.ratio(),3)
+
+                diff_results1 = ''
+                diff_results2 = ''
+                if diff_brute.ratio() != 1.0:
+                    diff_results1 = tmp_f+':\n##True:\n'+true+'\n##Brute:\n'+brute_sig
                 if diff_ml.ratio() != 1.0:
                     diff_results2 = tmp_f+':\n##True:\n'+true+'\n##ML:\n'+ml_sig
 
