@@ -10,23 +10,24 @@ from shutil import copyfile
 from evaluate import RESULT_DELIMITER, BODY_SUFFIX
 
 
-def build_sender_filename(msg_filename):
+def build_diff_filename(msg_filename):
     """By the message filename gives expected sender's filename."""
     return msg_filename[:-len(BODY_SUFFIX)] + '_diff'
 
 def collect_emails(emails,src,dest,method,classes):
     for e in emails:
-                diff = build_sender_filename(e)+ '_brute'
+                diff = build_diff_filename(e)+ '_'+ method
                 if os.path.isfile(src + '/' + diff):
-                    copyfile(src+'/'+diff, dest+method+'/'+classes+'/'+diff)
-                    copyfile(src+'/'+e, dest+method+'/'+classes+'/'+e)
+                    copyfile(src+'/'+diff, dest+'/'+classes+'/'+diff)
+                    copyfile(src+'/'+e, dest+'/'+classes+'/'+e)
                 elif os.path.isfile(src + '2/' + diff):
-                    copyfile(src+'2/'+diff, dest+method+'/'+classes+'/'+diff)
-                    copyfile(src+'2/'+e, dest+method+'/'+classes+'/'+e)
+                    copyfile(src+'2/'+diff, dest+'/'+classes+'/'+diff)
+                    copyfile(src+'2/'+e, dest+'/'+classes+'/'+e)
                 else:
                     print(diff)
 
-def statistics(filename,src,dest):
+def statistics(filename,src,dest,method):
+    dest = dest+method
     if os.path.isfile(filename+'.data'):
         with open(filename+'.data','r') as f:
             content = f.read().splitlines()
@@ -60,15 +61,10 @@ def statistics(filename,src,dest):
                 stat.write('\nPrecision: '+str(precision)+'\tRecall: '+str(recall)+'\tF1-Score: '+str(f_score))
                 stat.write('\n**** Details ****\n0: \n'+str(email_0)+'\n\n-1: \n'+str(email_N1)+'\n\n-2: \n'+str(email_N2)+'\n\n>0: \n'+str(email_P))
 
-            # collect_emails(email_N1,src,dest,'brute','N1')
-            # collect_emails(email_N2,src,dest,'brute','N2')
-            # collect_emails(email_P,src,dest,'brute','P')
-            # collect_emails(email_0,src,dest,'brute','0')
-
-            collect_emails(email_N1,src,dest,'ml','N1')
-            collect_emails(email_N2,src,dest,'ml','N2')
-            collect_emails(email_P,src,dest,'ml','P')
-            collect_emails(email_0,src,dest,'ml','0')
+            collect_emails(email_N1,src,dest,method,'N1')
+            collect_emails(email_N2,src,dest,method,'N2')
+            collect_emails(email_P,src,dest,method,'P')
+            collect_emails(email_0,src,dest,method,'0')
 
 
             print ratio_N2

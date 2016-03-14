@@ -167,7 +167,7 @@ def build_extraction_dataset(folder, dataset_filename,
             # if os.path.exists(result_filename):
             #     os.remove(result_filename)
             # with open(result_filename, 'a') as result:
-            # ##
+            # ## indent below after comment is taken off
             lines = msg.splitlines()
             for i in xrange(1, min(SIGNATURE_MAX_LINES,
                                    len(lines)) + 1):
