@@ -1,0 +1,54 @@
+**** Summery ****
+0: 72
+-1: 28
+-2: 4
+>0: 10
+Precision: 0.714285714286	Recall: 0.263157894737	F1-Score: 0.384615384615
+**** Details ****
+0: 
+['carson-m_inbox71_body' 'bass-e_inbox20_body' 'bass-e_inbox7_body'
+ 'bass-e_inbox154_body' 'arnold-j_inbox85_body' 'bass-e_inbox143_body'
+ 'arnold-j_inbox69_body' 'carson-m_inbox16_body' 'allen-p_inbox75_body'
+ 'carson-m_inbox3_body' 'allen-p_inbox23_body' 'bass-e_inbox135_body'
+ 'arnold-j_inbox10_body' 'bass-e_inbox56_body' 'bass-e_inbox206_body'
+ 'bass-e_inbox159_body' 'bass-e_inbox24_body' 'bass-e_inbox172_body'
+ 'carson-m_inbox1_body' 'bass-e_inbox139_body' 'bass-e_inbox140_body'
+ 'bass-e_inbox175_body' 'bass-e_inbox78_body' 'bass-e_inbox132_body'
+ 'arnold-j_inbox74_body' 'bass-e_inbox91_body' 'carson-m_inbox93_body'
+ 'bass-e_inbox101_body' 'arnold-j_inbox30_body' 'bass-e_inbox189_body'
+ 'bass-e_inbox183_body' 'arnold-j_inbox77_body' 'allen-p_inbox69_body'
+ 'arnold-j_inbox50_body' 'allen-p_inbox86_body' 'bass-e_inbox5_body'
+ 'bass-e_inbox92_body' 'bass-e_inbox131_body' 'bass-e_inbox181_body'
+ 'bass-e_inbox191_body' 'bass-e_inbox83_body' 'carson-m_inbox5_body'
+ 'arnold-j_inbox172_body' 'bass-e_inbox59_body' 'bass-e_inbox155_body'
+ 'carson-m_inbox80_body' 'bass-e_inbox119_body' 'bass-e_inbox102_body'
+ 'bass-e_inbox170_body' 'bass-e_inbox148_body' 'carson-m_inbox140_body'
+ 'bass-e_inbox55_body' 'bass-e_inbox224_body' 'carson-m_inbox97_body'
+ 'carson-m_inbox55_body' 'bass-e_inbox110_body' 'bass-e_inbox215_body'
+ 'bass-e_inbox177_body' 'carson-m_inbox23_body' 'bass-e_inbox121_body'
+ 'bass-e_inbox87_body' 'bass-e_inbox233_body' 'carson-m_inbox85_body'
+ 'arnold-j_inbox148_body' 'arnold-j_inbox46_body' 'arnold-j_inbox24_body'
+ 'bass-e_inbox217_body' 'bass-e_inbox111_body' 'arnold-j_inbox56_body'
+ 'arnold-j_inbox44_body' 'carson-m_inbox95_body' 'bass-e_inbox227_body']
+
+-1: 
+['carson-m_inbox76_body' 'carson-m_inbox20_body' 'carson-m_inbox109_body'
+ 'arnold-j_inbox3_body' 'carson-m_inbox70_body' 'allen-p_inbox27_body'
+ 'carson-m_inbox33_body' 'bass-e_inbox232_body' 'arnold-j_inbox33_body'
+ 'bass-e_inbox129_body' 'bass-e_inbox21_body' 'bass-e_inbox51_body'
+ 'carson-m_inbox125_body' 'bass-e_inbox287_body' 'bass-e_inbox238_body'
+ 'allen-p_inbox35_body' 'arnold-j_inbox71_body' 'arnold-j_inbox9_body'
+ 'arnold-j_inbox83_body' 'carson-m_inbox62_body' 'bass-e_inbox160_body'
+ 'bass-e_inbox184_body' 'bass-e_inbox186_body' 'allen-p_inbox85_body'
+ 'carson-m_inbox120_body' 'bass-e_inbox43_body' 'arnold-j_inbox162_body'
+ 'carson-m_inbox69_body']
+
+-2: 
+['allen-p_inbox5_body' 'allen-p_inbox17_body' 'allen-p_inbox18_body'
+ 'allen-p_inbox73_body']
+
+>0: 
+['allen-p_inbox5_body' 'carson-m_inbox47_body' 'bass-e_inbox22_body'
+ 'allen-p_inbox17_body' 'allen-p_inbox18_body' 'arnold-j_inbox4_body'
+ 'arnold-j_inbox12_body' 'allen-p_inbox73_body' 'arnold-j_inbox47_body'
+ 'carson-m_inbox63_body']
