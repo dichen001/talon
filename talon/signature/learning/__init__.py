@@ -13,20 +13,23 @@ from pathlib import Path
 Path('C:\Program Files').parent
 import dataset as d
 import evaluate as e
+import analysis as a
 # from test import ROOT_DIR
 DIR = os.path.abspath(os.path.dirname(__file__))
 #ROOT_DIR = os.path.join(DIR,'../../..')
 ROOT_DIR = '/'.join(DIR.split('/')[:-3])
 base_dir = ROOT_DIR + '/tests/fixtures/signature'
 train_folder = base_dir + '/emails/train'
-test_folder = base_dir + '/emails/test2'
+test_folder = base_dir + '/emails/test'
 # change relatively to where you store your marked training emails.
 dataset_filename = base_dir + '/tmp/extraction.data'
-performance_filename = base_dir + '/tmp/performance2'
+performance_filename = base_dir + '/tmp/performance'
+result_filename = base_dir + '/tmp/merged_ml'
+to_folder = base_dir + '/tmp/classified_emails/'
 
-#folder = '/Users/Jack/Dropbox/Github/talon/tests/fixtures/signature/emails/P'
-#dataset_filename = '/Users/Jack/Dropbox/Github/talon/tests/fixtures/signature/tmp/extraction.data'
-d.build_extraction_dataset(train_folder, dataset_filename, 1)
+e.run_test(base_dir)
 
-talon.init()
-e.predict(test_folder,performance_filename)
+# d.build_extraction_dataset(train_folder, dataset_filename, 1)
+# talon.init()
+# e.predict(test_folder,performance_filename)
+# a.statistics(result_filename,test_folder,to_folder,'brute')
