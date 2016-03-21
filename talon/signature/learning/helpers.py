@@ -5,13 +5,36 @@
 * regexp's constants used when evaluating signature's features
 
 """
-
+import nltk
+from os import path
 import unicodedata
 import regex as re
 
 from talon.utils import to_unicode
 
 from talon.signature.constants import SIGNATURE_MAX_LINES
+#from talon.signature.learning import titles,title_word,companys,company_word,stopwords,symbols
+
+
+DIR = path.abspath(path.dirname(__file__))
+#ROOT_DIR = os.path.join(DIR,'../../..')
+ROOT_DIR = '/'.join(DIR.split('/')[:-3])
+base_dir = ROOT_DIR + '/tests/fixtures/signature'
+f = open(base_dir+'/jobs.txt','r')
+titles = f.read().splitlines()
+titles = map(lambda x: x.split(), titles)
+title_word = [item for sublist in titles for item in sublist]
+title_word = set(title_word)
+f = open(base_dir+'/companys.txt','r').read()
+companys = f.splitlines()
+company_word = map(lambda x: x.split(' '), companys)
+company_word = [item for sublist in company_word for item in sublist]
+companys = set(companys)
+company_word = set(company_word)
+stopwords = set(nltk.corpus.stopwords.words('english'))
+symbols = set([',', '.', '-', '@', '#', '~', '`', '$', '%', '^', '&', '*', '(', ')', '_', '+', '=', '{', '}', ':', ';', '\'', '\"', '<', '>', ',', '.', '/', '?' ])
+company_word = company_word - stopwords - symbols
+title_word = title_word - stopwords - symbols
 
 
 rc = re.compile
@@ -19,6 +42,14 @@ rc = re.compile
 RE_EMAIL = rc('\S@\S')
 RE_RELAX_PHONE = rc('(\(? ?[\d]{2,3} ?\)?.{,3}?){2,}')
 RE_URL = rc(r'''https?://|www\.[\S]+\.[\S]''')
+
+
+# Taken from:
+# 1: http://stackoverflow.com/questions/11456670/regular-expression-for-address-field-validation
+# 2: http://regexlib.com/REDetails.aspx?regexp_id=472
+# Line may has street address
+RE_ADDRESS1 = rc('\d{1,5}\s\w.\s(\b\w*\b\s){1,2}\w*\.')
+RE_ADDRESS2 = rc('^(\d{3,})\s?(\w{0,5})\s([a-zA-Z]{2,30})\s([a-zA-Z]{2,15})\.?\s?(\w{0,5})$')
 
 # Taken from:
 # http://www.cs.cmu.edu/~vitor/papers/sigFilePaper_finalversion.pdf
@@ -122,6 +153,54 @@ def contains_sender_names(sender):
         return binary_regex_search(re.compile(names))
     return lambda s: 0
 
+def contains_job_titles_high(s):
+    # perfect match
+    if titles.__contains__(s):
+        return 1
+    # match ALL words in the titles corpus.
+    words = set(s.split()) - stopwords - symbols
+    if len(words):
+        ratio = count_word_ratio_in_corpus(words, title_word)
+        if ratio > 0.8:
+            return 1
+    return 0
+
+def contains_job_titles_low(s):
+    # match SOME words in the titles corpus.
+    words = set(s.split()) - stopwords - symbols
+    if len(words):
+        ratio = count_word_ratio_in_corpus(words, title_word)
+        if ratio > 0.3 and ratio <= 0.8:
+            return 1
+    return 0
+
+def contains_company_name_high(s):
+    if companys.__contains__(s):
+        return 1
+    # match MOST words in the company tible corpus.
+    words = set(s.split()) - stopwords - symbols
+    if len(words):
+        ratio = count_word_ratio_in_corpus(words, company_word)
+        if ratio > 0.8:
+            return 1
+    return 0
+
+
+def contains_company_name_low(s):
+    # match Some words in the company tible corpus.
+    words = set(s.split()) - stopwords - symbols
+    if len(words):
+        ratio = count_word_ratio_in_corpus(words, company_word)
+        if ratio > 0.3 and ratio <= 0.8:
+            return 1
+    return 0
+
+def count_word_ratio_in_corpus(words, corpus):
+    count = 0
+    for word in words:
+        if corpus.__contains__(word):
+            count = count + 1.0
+    return count / len(words)
 
 def extract_names(sender):
     """Tries to extract sender's names from `From:` header.

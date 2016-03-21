@@ -40,7 +40,15 @@ def features(sender=''):
         lambda line: 1 if punctuation_percent(line) > 50 else 0,
         # Percentage of punctuation symbols in the line is larger than 90%
         lambda line: 1 if punctuation_percent(line) > 90 else 0,
-        contains_sender_names(sender)
+        contains_sender_names(sender),
+
+        ####   below are features added by dichen001 @ Github    (feature name tells its function)
+        binary_regex_search(RE_ADDRESS1),
+        binary_regex_search(RE_ADDRESS2),
+        contains_job_titles_low,
+        contains_job_titles_high,
+        contains_company_name_low,
+        contains_company_name_high
         ]
 
 

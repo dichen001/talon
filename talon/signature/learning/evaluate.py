@@ -13,14 +13,11 @@ import numpy as np
 from shutil import copyfile
 from random import randint,random,shuffle
 
-from talon.signature.bruteforce import extract_signature
 import talon
-from talon import signature
-
-
-from talon import quotations
-from talon.signature.constants import SIGNATURE_MAX_LINES
 from talon.signature.learning.featurespace import build_pattern, features
+from talon.signature.bruteforce import extract_signature
+from talon.signature.learning.classifier import train, init
+from talon.signature import extraction
 
 RESULT_DELIMITER = ' -%%%%- '
 
@@ -34,6 +31,7 @@ SIGNATURE_ANNOTATION = '#sig#'
 REPLY_ANNOTATION = '#reply#'
 
 ANNOTATIONS = [SIGNATURE_ANNOTATION, REPLY_ANNOTATION]
+
 
 
 def is_sender_filename(filename):
@@ -59,13 +57,10 @@ def build_diff_filename(msg_filename):
 
 def parse_msg_sender(filename, sender_known=True):
     """Given a filename returns the sender and the message.
-
     Here the message is assumed to be a whole MIME message or just
     message body.
-
     >>> sender, msg = parse_msg_sender('msg.eml')
     >>> sender, msg = parse_msg_sender('msg_body')
-
     If you don't want to consider the sender's name in your classification
     algorithm:
     # >>> parse_msg_sender(filename, False)
@@ -117,7 +112,7 @@ def predict(repetition, base_dir, emails, performance_filename,
                 if brute_sig is None:
                     brute_sig = ''
 
-                text, ml_sig = signature.extract(unmarked_msg, sender=sender)
+                text, ml_sig = talon.signature.extract(unmarked_msg, sender=sender)
                 if ml_sig is None:
                     ml_sig = ''
 
@@ -178,8 +173,7 @@ def predict(repetition, base_dir, emails, performance_filename,
 
 def remove_marks(msg):
     lines = msg.splitlines()
-    for i in xrange(1, min(SIGNATURE_MAX_LINES,
-                           len(lines)) + 1):
+    for i in xrange(1, min(11,len(lines)) + 1):
         line = lines[-i]
         if line[:len(SIGNATURE_ANNOTATION)] == \
                 SIGNATURE_ANNOTATION:
@@ -241,8 +235,8 @@ def split_data(data,repetition,r):
     start = r*bin
     end = (r+1)*bin
     test = data[start:end]
-    train = list(set(data)-set(test))
-    return train,test
+    training = list(set(data)-set(test))
+    return training,test
 
 def build_extraction_dataset(repetition, source_folder, emails, dataset_filename, sender_known=True):
     """Builds signature extraction dataset using emails in the `folder`
@@ -250,6 +244,7 @@ def build_extraction_dataset(repetition, source_folder, emails, dataset_filename
     The emails in the `folder` should be annotated i.e. signature lines
     should be marked with `#sig#`.
     """
+    global EXTRACTOR_DATA
     dataset_filename = dataset_filename+repetition
     if os.path.exists(dataset_filename):
         os.remove(dataset_filename)
@@ -272,8 +267,7 @@ def build_extraction_dataset(repetition, source_folder, emails, dataset_filename
             # with open(result_filename, 'a') as result:
             # ## indent below after comment is taken off
             lines = msg.splitlines()
-            for i in xrange(1, min(SIGNATURE_MAX_LINES,
-                                   len(lines)) + 1):
+            for i in xrange(1, min(11,len(lines)) + 1):
                 line = lines[-i]
                 label = -1
                 if line[:len(SIGNATURE_ANNOTATION)] == \
@@ -289,6 +283,7 @@ def build_extraction_dataset(repetition, source_folder, emails, dataset_filename
                 X.append(label)
                 labeled_pattern = ','.join([str(e) for e in X])
                 dataset.write(labeled_pattern + '\n')
+    return dataset_filename
 
 
 def collect_emails(emails,src,dest,method,classes):
@@ -363,6 +358,8 @@ def run_test(base_dir):
     stat_folder = base_dir + '/tmp/statistics/'
     dataset_filename = base_dir + '/tmp/trained_model/extraction_'
     performance_filename = base_dir + '/tmp/predictions/performance_'
+    classifier_dir = base_dir + '/tmp/classifiers/'
+    global EXTRACTOR
 
     iteration = 5
     repetition = 5
@@ -380,11 +377,15 @@ def run_test(base_dir):
         tmp_dataset_filename = dataset_filename + str(i) + '_'
         tmp_performance_filename = performance_filename + str(i) + '_'
         for r in range(repetition):
-            train,test = split_data(emails,repetition,r)
+            training,testing = split_data(emails,repetition,r)
             #print len(test),len(train)
-            build_extraction_dataset(str(r), source_folder, train, tmp_dataset_filename)
-            talon.init()
-            brute_result, ml_result = predict(str(r), base_dir, test, tmp_performance_filename)
+            extraction_filename = build_extraction_dataset(str(r), source_folder, training, tmp_dataset_filename)
+
+            classifier_name = classifier_dir + str(i) + '_' + str(r)
+            extraction.EXTRACTOR = train(init(), extraction_filename, classifier_name)
+            #talon.init()
+
+            brute_result, ml_result = predict(str(r), base_dir, testing, tmp_performance_filename)
             brute_precision, brute_recall, brute_f_score = statistics(str(r),brute_result,source_folder,stat_folder,'brute')
             ml_precision, ml_recall, ml_f_score = statistics(str(r),ml_result,source_folder,stat_folder,'ml')
             print 'i:\t p:\t r:\t f:\t'
