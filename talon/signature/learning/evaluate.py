@@ -5,6 +5,7 @@ To evaluate the prediction results.
 """
 
 import os
+import csv
 import email
 import timeit
 import difflib
@@ -14,10 +15,17 @@ from shutil import copyfile
 from random import randint,random,shuffle
 
 import talon
+
+from talon import quotations
+
 from talon.signature.learning.featurespace import build_pattern, features
 from talon.signature.bruteforce import extract_signature
 from talon.signature.learning.classifier import train, init
 from talon.signature import extraction
+from talon.utils import get_delimiter
+from talon.signature.constants import SIGNATURE_MAX_LINES
+
+
 
 RESULT_DELIMITER = ' -%%%%- '
 
@@ -26,9 +34,23 @@ BODY_SUFFIX = '_body'
 RESULT_SUFFIX = '_results'
 PREDICT_SUFFIX = '_predicts'
 DIFF_SUFFIX = '_diff'
+SIG_SUFFIX = '_sig'
+DETAILS_SUFFIX = '_details'
+ORIGIN_SUFFIX = '_origin'
 
 SIGNATURE_ANNOTATION = '#sig#'
 REPLY_ANNOTATION = '#reply#'
+NAME_ANNOTATION = '#name#'
+TITLE_ANNOTATION = '#title#'
+COMPANY_ANNOTATION = '#comp#'
+ADDR_ANNOTATION = '#addr#'
+NUM_ANNOTATION = '#num#'
+WORK_ANNOTATION = '#work#'
+FAX_ANNOTATION = '#fax#'
+EMAIL_ANNOTATION = '#email#'
+URL_ANNOTATION = '#url#'
+SLOGAN_ANNOTATION = '#slogan#'
+QUOTE_ANNOTATION = '#quote#'
 
 ANNOTATIONS = [SIGNATURE_ANNOTATION, REPLY_ANNOTATION]
 
@@ -38,6 +60,10 @@ def is_sender_filename(filename):
     """Checks if the file could contain message sender's name."""
     return filename.endswith(SENDER_SUFFIX)
 
+
+def build_filename(msg_filename, SUFFIX):
+    """By the message filename gives expected sender's filename."""
+    return msg_filename[:-len(BODY_SUFFIX)] + SUFFIX
 
 def build_sender_filename(msg_filename):
     """By the message filename gives expected sender's filename."""
@@ -171,6 +197,103 @@ def predict(repetition, base_dir, emails, performance_filename,
                 total_results_ml.write(str(label_ml) + ' -%%%%- ' + email+'\n')
     return r1,r2
 
+# detailed version. to extract more features from Signature Block.
+def predict_v2(repetition, base_dir, emails, performance_filename,
+                             sender_known=True):
+    """evaluation of prediction.
+    """
+    dir = base_dir + '/emails/process/'
+    r1= performance_filename+ repetition+'_brute'
+    if os.path.exists(r1):
+        os.remove(r1)
+    r2= performance_filename+repetition+'_ml'
+    if os.path.exists(r2):
+        os.remove(r2)
+    # with open(r1, 'a') as total_results_b:
+    with open(r2, 'a') as total_results_ml:
+        # for filename in os.listdir(folder):
+        for email in emails:
+
+            filename = dir + email
+            sender_f = build_filename(filename,SENDER_SUFFIX)
+            origin_f = build_filename(filename, ORIGIN_SUFFIX)
+            details_f = build_filename(filename, DETAILS_SUFFIX)
+            signature_f = build_filename(filename, SIG_SUFFIX)
+
+            sender = open(sender_f,'r').read()
+            msg = open(origin_f,'r').read()
+            details = open(details_f,'r').read()
+            signature = open(signature_f,'r').read()
+
+            if not sender or not msg:
+                print 'Empty Sender: ' + filename
+                continue
+
+            # text, brute_sig = extract_signature(msg)
+            # if brute_sig is None:
+            #     brute_sig = ''
+
+            text, ml_sig = talon.signature.extract(msg, sender=sender)
+            if ml_sig is None:
+                ml_sig = ''
+            else:
+                ml_details = predict_details(msg,sender)
+
+            predict_filename = build_predict_filename(filename) #filename[:-len('_body')] + PREDICT_SUFFIX
+            # with open(predict_filename+'_brute', 'w') as pf:
+            #     pf.write(brute_sig)
+            with open(predict_filename+'_ml', 'w') as pf:
+                pf.write(ml_sig)
+
+            # diff_brute = difflib.SequenceMatcher(None,signature,brute_sig)
+            diff_ml = difflib.SequenceMatcher(None,signature,ml_sig)
+            '''
+            0: not marked, not predicted
+            >0: marked, predicted
+            -2: not marked, predicted
+            -1: marked, not predicted
+            '''
+            if signature == '':
+                # if diff_brute.ratio() > 0:
+                #     label_brute = 0
+                # else:
+                #     label_brute = -2
+                if diff_ml.ratio() > 0:
+                    label_ml = 0
+                else:
+                    label_ml = -2
+            else:
+                # if diff_brute.ratio() > 0:
+                #     label_brute = diff_brute.ratio()
+                # else:
+                #     label_brute = -1
+                if diff_ml.ratio() > 0:
+                    label_ml = diff_ml.ratio()
+                else:
+                    label_ml = -1
+
+            # diff_sig1 = ''
+            diff_sig2 = ''
+            # if diff_brute.ratio() != 1.0:
+            #     diff_sig1 = email+':\n##True:\n'+signature+'\n##Brute:\n'+brute_sig
+            if diff_ml.ratio() != 1.0:
+                diff_sig2 = email+':\n##True:\n'+signature+'\n##ML:\n'+ml_sig
+
+            diff_filename = build_diff_filename(filename)
+            # with open(diff_filename+'_brute', 'w') as df1:
+            #     df1.write(diff_sig1)
+            with open(diff_filename+'_ml', 'w') as df2:
+                df2.write(diff_sig2)
+
+            # total_results_b.write(str(label_brute) + ' -%%%%- ' + email+'\n')
+            total_results_ml.write(str(label_ml) + ' -%%%%- ' + email+'\n')
+    # return r1,r2
+    return r2
+
+def predict_details(sig,sender):
+    dict = {}
+
+
 def remove_marks(msg):
     lines = msg.splitlines()
     for i in xrange(1, min(11,len(lines)) + 1):
@@ -186,6 +309,8 @@ def remove_marks(msg):
 
 # to remove header details and the forward message from the emails, only return the reply body.
 def process(msg,filename,sender):
+    if not filename.endswith('.'):
+        return None
     content = email.message_from_string(msg)
     body = []
     if content.is_multipart():
@@ -198,7 +323,7 @@ def process(msg,filename,sender):
     reply = quotations.extract_from(body[0], 'text/plain')
     #print filename + ":\n" + reply
     if re.search('\d+\.$',filename) is not None:
-        reply_filename = re.sub('\d+\.$', change_name_reply, filename)
+        reply_filename = re.sub('\d+\.$', change_name_body, filename)
         f = open(reply_filename, 'w')
         f.write(reply.strip())
         f.close()
@@ -209,7 +334,7 @@ def process(msg,filename,sender):
         print filename
     return reply
 
-def change_name_reply(matchobj):
+def change_name_body(matchobj):
     if matchobj.group(0)[-1]=='.':
         return matchobj.group(0)[:-1] + '_body'
 
@@ -224,7 +349,10 @@ def change_name_diff(matchobj):
 def get_all_emails(path):
     f = []
     for dirpath, dirnames, filenames in os.walk(path):
-        f.extend(filenames)
+        for i in range(len(filenames)):
+            filename = filenames[i]
+            if str(filename).endswith('_body'):
+                f.append(filename)
     return f
 
 
@@ -237,6 +365,148 @@ def split_data(data,repetition,r):
     test = data[start:end]
     training = list(set(data)-set(test))
     return training,test
+
+def preprocess(emails, folder, dest_folder, csv_results):
+    """
+    used to preprocess the marked file(xx_body), to generate the original one(xx_origin),
+    the signature part(_sig), and the details infromation(xx_detail).
+    :param folder:
+    :return:
+    """
+    with open(csv_results,'w') as csvfile:
+        fieldnames = ['filename', 'sender', 'content', 'has_sig', 'sig', 'name', 'title', 'company', 'address', 'number', 'work_number', 'fax', 'email', 'url', 'slogan', 'quote']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+        for email in emails:
+            filename = folder + email
+            sender, msg = parse_msg_sender(filename, sender_known=True)
+            if not sender or not msg:
+                print 'Empty: ' + filename
+                continue
+            delim = get_delimiter(msg)
+            lines = msg.split(delim)
+
+            sig = []
+            dict = {}
+            label = -1
+            for i in xrange(1, min(SIGNATURE_MAX_LINES,len(lines)) + 1):
+                line = lines[-i]
+                if line[:len(SIGNATURE_ANNOTATION)] == SIGNATURE_ANNOTATION:
+                    label = 1
+                    line = line[len(SIGNATURE_ANNOTATION):]
+                    dict,line = find_details(dict,line)
+                    sig.append(line)
+                    lines[-i] = line
+            origin = build_filename(filename, ORIGIN_SUFFIX)
+            details = build_filename(filename, DETAILS_SUFFIX)
+            signature = build_filename(filename, SIG_SUFFIX)
+
+            writer.writerow({'filename': email,
+                             'sender': sender,
+                             'content': msg,
+                             'has_sig': label,
+                             'sig': delim.join(sig[::-1]),
+                             'name': dict.get('name'),
+                             'title': dict.get('title'),
+                             'company':dict.get('company'),
+                             'address': dict.get('address'),
+                             'number': dict.get('num'),
+                             'work_number': dict.get('work_num'),
+                             'fax': dict.get('fax'),
+                             'email': dict.get('email'),
+                             'url': dict.get('url'),
+                             'slogan': dict.get('slogan'),
+                             'quote': dict.get('quote')})
+
+            # if label == 1:
+            #     origin_f = open(origin, 'w')
+            #     o = delim.join(lines)
+            #     origin_f.write(o)
+            #     # for i in lines:
+            #     #     origin_f.writelines(i)
+            #     origin_f.close()
+            #
+            #     signature_f = open(signature, 'w')
+            #     s = delim.join(sig[::-1])
+            #     signature_f.write(s)
+            #     # for i in sig:
+            #     #     signature_f.writelines(i)
+            #     signature_f.close()
+            #
+            #     dict_f = open(details+".csv",'w')
+            #     w = csv.writer(dict_f)
+            #     for key, val in dict.items():
+            #         w.writerow([key, val])
+            #     dict_f.close()
+
+def find_details(dict,line):
+    if line[:len(NAME_ANNOTATION)] == NAME_ANNOTATION:
+        line = line[len(NAME_ANNOTATION):]
+        if dict.get('name'):
+            dict['name'] = dict['name'] + ' |&*&| ' + line
+        else:
+            dict['name'] = line
+    elif line[:len(TITLE_ANNOTATION)] == TITLE_ANNOTATION:
+        line = line[len(TITLE_ANNOTATION):]
+        if dict.get('title'):
+            dict['title'] = dict['title'] + ' |&*&| ' + line
+        else:
+            dict['title'] = line
+    elif line[:len(COMPANY_ANNOTATION)] == COMPANY_ANNOTATION:
+        line = line[len(COMPANY_ANNOTATION):]
+        if dict.get('company'):
+            dict['company'] = dict['company'] + ' |&*&| ' + line
+        else:
+            dict['company'] = line
+    elif line[:len(ADDR_ANNOTATION)] == ADDR_ANNOTATION:
+        line = line[len(ADDR_ANNOTATION):]
+        if dict.get('address'):
+            dict['address'] = dict['address'] + ' |&*&| ' + line
+        else:
+            dict['address'] = line
+    elif line[:len(NUM_ANNOTATION)] == NUM_ANNOTATION:
+        line = line[len(NUM_ANNOTATION):]
+        if dict.get('num'):
+            dict['num'] = dict['num'] + ' |&*&| ' + line
+        else:
+            dict['num'] = line
+    elif line[:len(WORK_ANNOTATION)] == WORK_ANNOTATION:
+        line = line[len(WORK_ANNOTATION):]
+        if dict.get('work_num'):
+            dict['work_num'] = dict['work_num'] + ' |&*&| ' + line
+        else:
+            dict['work_num'] = line
+    elif line[:len(FAX_ANNOTATION)] == FAX_ANNOTATION:
+        line = line[len(FAX_ANNOTATION):]
+        if dict.get('fax'):
+            dict['fax'] = dict['fax'] + ' |&*&| ' + line
+        else:
+            dict['fax'] = line
+    elif line[:len(EMAIL_ANNOTATION)] == EMAIL_ANNOTATION:
+        line = line[len(EMAIL_ANNOTATION):]
+        if dict.get('email'):
+            dict['email'] = dict['email'] + ' |&*&| ' + line
+        else:
+            dict['email'] = line
+    elif line[:len(URL_ANNOTATION)] == URL_ANNOTATION:
+        line = line[len(URL_ANNOTATION):]
+        if dict.get('url'):
+            dict['url'] = dict['url'] + ' |&*&| ' + line
+        else:
+            dict['url'] = line
+    elif line[:len(SLOGAN_ANNOTATION)] == SLOGAN_ANNOTATION:
+        line = line[len(SLOGAN_ANNOTATION):]
+        if dict.get('slogan'):
+            dict['slogan'] = dict['slogan'] + ' |&*&| ' + line
+        else:
+            dict['slogan'] = line
+    elif line[:len(QUOTE_ANNOTATION)] == QUOTE_ANNOTATION:
+        line = line[len(QUOTE_ANNOTATION):]
+        if dict.get('quote'):
+            dict['quote'] = dict['quote'] + ' |&*&| ' + line
+        else:
+            dict['slogan'] = line
+    return dict,line
 
 def build_extraction_dataset(repetition, source_folder, emails, dataset_filename, sender_known=True):
     """Builds signature extraction dataset using emails in the `folder`
@@ -255,36 +525,32 @@ def build_extraction_dataset(repetition, source_folder, emails, dataset_filename
             if not sender or not msg:
                 #print 'Empty: ' + filename
                 continue
-            ## use 2 lines below to pre-process emails to get the body and sender file for later Email Extraction.
-            # msg = process(msg,filename,sender)
-            # continue
 
-            # ### Use 2 lines below to save the marked signature part into '*_result' file.
-            # ##
-            # result_filename = build_result_filename(filename)
-            # if os.path.exists(result_filename):
-            #     os.remove(result_filename)
-            # with open(result_filename, 'a') as result:
-            # ## indent below after comment is taken off
-            lines = msg.splitlines()
-            for i in xrange(1, min(11,len(lines)) + 1):
-                line = lines[-i]
-                label = -1
-                if line[:len(SIGNATURE_ANNOTATION)] == \
-                        SIGNATURE_ANNOTATION:
-                    label = 1
-                    line = line[len(SIGNATURE_ANNOTATION):]
-                    # ##
-                    # result.write(line + '\n')
-                    # ##
-                elif line[:len(REPLY_ANNOTATION)] == REPLY_ANNOTATION:
-                    line = line[len(REPLY_ANNOTATION):]
-                X = build_pattern(line, features(sender))
-                X.append(label)
-                labeled_pattern = ','.join([str(e) for e in X])
-                dataset.write(labeled_pattern + '\n')
+            ### Use 2 lines below to save the marked signature part into '*_result' file.
+            ##
+            result_filename = build_result_filename(filename)
+            if os.path.exists(result_filename):
+                os.remove(result_filename)
+            with open(result_filename, 'a') as result:
+            ## indent below after comment is taken off
+                lines = msg.splitlines()
+                for i in xrange(1, min(SIGNATURE_MAX_LINES,len(lines)) + 1):
+                    line = lines[-i]
+                    label = -1
+                    if line[:len(SIGNATURE_ANNOTATION)] == \
+                            SIGNATURE_ANNOTATION:
+                        label = 1
+                        line = line[len(SIGNATURE_ANNOTATION):]
+                        # ##
+                        # result.write(line + '\n')
+                        # ##
+                    elif line[:len(REPLY_ANNOTATION)] == REPLY_ANNOTATION:
+                        line = line[len(REPLY_ANNOTATION):]
+                    X = build_pattern(line, features(sender))
+                    X.append(label)
+                    labeled_pattern = ','.join([str(e) for e in X])
+                    dataset.write(labeled_pattern + '\n')
     return dataset_filename
-
 
 def collect_emails(emails,src,dest,method,classes):
     for e in emails:
@@ -361,7 +627,7 @@ def run_test(base_dir):
     classifier_dir = base_dir + '/tmp/classifiers/'
     global EXTRACTOR
 
-    iteration = 5
+    iteration = 10
     repetition = 5
     emails = get_all_emails(emails_folder)
 
@@ -440,3 +706,28 @@ def run_test(base_dir):
         runtime = timeit.default_timer() - start
         fr.write('Iteration: ' +str(iteration) + ' Bin Repetition: ' + str(repetition)+' Total Runtime:'+str(runtime))
     print runtime
+
+
+## this function is used to create csv files containing 'filename' 'sender' and 'content'
+## so that the csv file can be upload to MT to generate template email for MT workers to process.
+def get_content_sender(folder,dest_folder,csvfile):
+    with open(csvfile,'w') as csvfile:
+        fieldnames = ['filename', 'sender', 'content']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+        for filename in os.listdir(folder):
+            if filename.startswith('.') or not filename.endswith('.'):
+                continue
+            #print filename
+            email_name = filename
+            filename = os.path.join(folder, filename)
+            sender, msg = parse_msg_sender(filename, sender_known=1)
+            if not sender or not msg:
+                #print 'Empty: ' + filename
+                continue
+            # use 2 lines below to pre-process emails to get the body and sender file for later Email Extraction.
+            dest_file = os.path.join(dest_folder, email_name)
+            msg = process(msg,dest_file,sender)
+            if len(email_name) > 25:
+                continue
+            writer.writerow({'filename': email_name, 'sender': sender, 'content': msg})
