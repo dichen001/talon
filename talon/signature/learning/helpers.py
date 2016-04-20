@@ -20,11 +20,28 @@ DIR = path.abspath(path.dirname(__file__))
 #ROOT_DIR = os.path.join(DIR,'../../..')
 ROOT_DIR = '/'.join(DIR.split('/')[:-3])
 base_dir = ROOT_DIR + '/tests/fixtures/signature'
+
+f = open(base_dir+'/first_name_male.txt','r')
+first_name_male = f.read().splitlines()
+first_name_male = list(set(first_name_male))
+
+f = open(base_dir+'/first_name_female.txt','r')
+first_name_female = f.read().splitlines()
+first_name_female = list(set(first_name_female))
+
+f = open(base_dir+'/last_name.txt','r')
+last_name = f.read().splitlines()
+last_name = list(set(last_name))
+
+name_list = first_name_male + first_name_female + last_name
+name_list = list(set(name_list))
+
 f = open(base_dir+'/jobs.txt','r')
 titles = f.read().splitlines()
 titles = map(lambda x: x.split(), titles)
 title_word = [item for sublist in titles for item in sublist]
 title_word = set(title_word)
+
 f = open(base_dir+'/companys.txt','r').read()
 companys = f.splitlines()
 company_word = map(lambda x: x.split(' '), companys)
@@ -40,6 +57,7 @@ title_word = title_word - stopwords - symbols
 rc = re.compile
 
 RE_EMAIL = rc('\S@\S')
+#RE_RELAX_PHONE = rc('^(?:(?:\+?1\s*(?:[.-]\s*)?)?(?:\(\s*([2-9]1[02-9]|[2-9][02-8]1|[2-9][02-8][02-9])\s*\)|([2-9]1[02-9]|[2-9][02-8]1|[2-9][02-8][02-9]))\s*(?:[.-]\s*)?)?([2-9]1[02-9]|[2-9][02-9]1|[2-9][02-9]{2})\s*(?:[.-]\s*)?([0-9]{4})(?:\s*(?:#|x\.?|ext\.?|extension)\s*(\d+))?$')
 RE_RELAX_PHONE = rc('(\(? ?[\d]{2,3} ?\)?.{,3}?){2,}')
 RE_URL = rc(r'''https?://|www\.[\S]+\.[\S]''')
 
@@ -153,6 +171,33 @@ def contains_sender_names(sender):
         return binary_regex_search(re.compile(names))
     return lambda s: 0
 
+def process_potential_name(s):
+    processed = []
+    for word in s:
+        if word.find('.') == len(word) - 1:
+            word = word.replace('.','')
+            processed.append(word)
+        elif word.find('.') > -1:
+            word = word.split('.')
+            processed.extend(word)
+        else:
+            processed.append(word)
+    return processed
+
+def contains_common_names(s):
+    # 'Charles R. Bamford'    'T.Jae Black'
+    s = s.split()
+    if len(s) > 4:
+        return 0
+    processed = process_potential_name(s)
+    for word in processed:
+        if (len(word) == 1 and word.isalpha()) or (name_list.__contains__(word)):
+            continue
+        else:
+            return 0
+    return 1
+
+
 def contains_job_titles_high(s):
     # perfect match
     if titles.__contains__(s):
@@ -170,7 +215,7 @@ def contains_job_titles_low(s):
     words = set(s.split()) - stopwords - symbols
     if len(words):
         ratio = count_word_ratio_in_corpus(words, title_word)
-        if ratio > 0.3 and ratio <= 0.8:
+        if ratio > 0.3:# and ratio <= 0.8:
             return 1
     return 0
 
@@ -191,7 +236,7 @@ def contains_company_name_low(s):
     words = set(s.split()) - stopwords - symbols
     if len(words):
         ratio = count_word_ratio_in_corpus(words, company_word)
-        if ratio > 0.3 and ratio <= 0.8:
+        if ratio > 0.3:# and ratio <= 0.8:
             return 1
     return 0
 
@@ -296,9 +341,19 @@ def has_signature(body, sender):
             continue
         elif contains_sender_names(sender)(line):
             return True
-        elif (binary_regex_search(RE_RELAX_PHONE)(line) +
+        elif (
+             (binary_regex_search(RE_SIGNATURE_WORDS)(line) +
+              binary_regex_search(RE_ADDRESS1)(line) +
+              # binary_regex_search(RE_ADDRESS2)(line) +
+              #contains_company_name_low(line) +
+              contains_job_titles_low(line) +
+              contains_common_names(line) +
+              binary_regex_search(RE_RELAX_PHONE)(line) +
               binary_regex_search(RE_EMAIL)(line) +
-              binary_regex_search(RE_URL)(line) == 1):
+              #(punctuation_percent(line)/50) +
+              binary_regex_search(RE_URL)(line) ) >= 1):
             upvotes += 1
-    if upvotes > 1:
-        return True
+        if upvotes > 1:
+            return True
+    return False
+

@@ -24,7 +24,7 @@ from talon.signature.learning.classifier import train, init
 from talon.signature import extraction
 from talon.utils import get_delimiter
 from talon.signature.constants import SIGNATURE_MAX_LINES
-
+from talon.signature.learning.helpers import *
 
 
 RESULT_DELIMITER = ' -%%%%- '
@@ -127,7 +127,6 @@ def predict(repetition, base_dir, emails, performance_filename,
         with open(r2, 'a') as total_results_ml:
             # for filename in os.listdir(folder):
             for email in emails:
-
                 filename = base_dir + '/emails/total/' + email
                 sender, msg = parse_msg_sender(filename, sender_known)
                 if not sender or not msg:
@@ -292,6 +291,62 @@ def predict_v2(repetition, base_dir, emails, performance_filename,
 
 def predict_details(sig,sender):
     dict = {}
+    for line in sig.splitlines():
+        if not line:
+            continue
+        match = re.search(RE_EMAIL,line)
+        if match:
+            dict['email'] = line
+            continue
+
+        match = re.search(RE_RELAX_PHONE,line)
+        if match:
+            if line.__contains__('fax'):
+                dict['p_fax'] = ('').join(line.split('fax')).strip()
+            elif line.__contains__('work'):
+                dict['p_work_number'] = ('').join(line.split('work')).strip()
+            elif line.__contains__('off'):
+                dict['p_work_number'] = ('').join(line.split('off')).strip()
+            else:
+                dict['p_number'] = line
+            continue
+
+        match = re.search(RE_URL,line)
+        if match:
+            dict['p_url'] = line
+            continue
+
+        if contains_sender_names(sender)(line) or contains_common_names(line):
+            if extract_names(line):
+                dict['p_name'] = extract_names(line)
+            else:
+                processed = process_potential_name(line)
+                dict['p_name'] = ''.join(processed)
+            continue
+
+        if contains_job_titles_high(line):
+            dict['p_title'] = line
+            continue
+
+        if contains_company_name_high(line):
+            dict['p_company'] = line
+            continue
+
+        match = re.search(RE_ADDRESS1, line)
+        if match:
+            dict['p_address'] = match.group(0)
+            continue
+    return dict
+        # p_name = get_name(line)
+        # p_title = get_title(line)
+        # p_company = get_company(line)
+        # p_address = get_address(line)
+        # p_num = get_num(line)
+        # p_email = get_email(line)
+        # p_url = get_url(line)
+        # p_slogan = get_slogan(line)
+        # p_quote = get_quote(line)
+
 
 
 def remove_marks(msg):
@@ -357,25 +412,29 @@ def get_all_emails(path):
 
 
 "Split data into training and testing"
-def split_data(data,repetition,r):
+def split_data(data, repetition, round):
     total = len(data)
     bin = total/repetition
-    start = r*bin
-    end = (r+1)*bin
+    start = round*bin
+    end = (round+1)*bin
     test = data[start:end]
     training = list(set(data)-set(test))
     return training,test
 
-def preprocess(emails, folder, dest_folder, csv_results):
+def preprocess(emails, folder, csv_results):
     """
+    v1:
     used to preprocess the marked file(xx_body), to generate the original one(xx_origin),
     the signature part(_sig), and the details infromation(xx_detail).
-    :param folder:
-    :return:
+
+    v2:
+    used to preprocess the marked emails(xx_body), to generate a csv file contains all the ACTUAL information of the emails.
     """
     with open(csv_results,'w') as csvfile:
-        fieldnames = ['filename', 'sender', 'content', 'has_sig', 'sig', 'name', 'title', 'company', 'address', 'number', 'work_number', 'fax', 'email', 'url', 'slogan', 'quote']
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        fields = ['filename', 'sender', 'origin', 'marked', 'has_sig', 'sig', 'name', 'title', 'company', 'address', 'number', 'work_number', 'fax', 'email', 'url', 'slogan', 'quote']
+        # predict_fields = ['p_has_sig','p_sig','p_name','p_title','p_company','p_address','p_number','p_work_number','p_fax','p_email','p_url','p_slogan','p_quote']
+        # fields.extend(predict_fields)
+        writer = csv.DictWriter(csvfile, fieldnames=fields)
         writer.writeheader()
         for email in emails:
             filename = folder + email
@@ -403,7 +462,8 @@ def preprocess(emails, folder, dest_folder, csv_results):
 
             writer.writerow({'filename': email,
                              'sender': sender,
-                             'content': msg,
+                             'origin': delim.join(lines),
+                             'marked': msg,
                              'has_sig': label,
                              'sig': delim.join(sig[::-1]),
                              'name': dict.get('name'),
@@ -439,71 +499,104 @@ def preprocess(emails, folder, dest_folder, csv_results):
             #         w.writerow([key, val])
             #     dict_f.close()
 
+
+def csv_predict(test_emails, input_csv, out_put):
+    with open(input_csv,'r') as csvinput:
+        with open(out_put,'w') as csvoutput:
+            reader = csv.DictReader(csvinput)
+            fileds = reader.fieldnames
+            predict_fields = ['p_has_sig','p_sig','p_name','p_title','p_company','p_address','p_number','p_work_number','p_fax','p_email','p_url','p_slogan','p_quote']
+            fileds.extend(predict_fields)
+            writer = csv.DictWriter(csvoutput, fieldnames=fileds)
+            writer.writeheader()
+            for row in reader:
+                email = row['filename']
+                if email not in test_emails:
+                    continue
+                origin = row['origin']
+                sender = row['sender']
+                actual_sig = row['sig']
+                text, ml_sig = talon.signature.extract(origin, sender=sender)
+                if ml_sig is None:
+                    ml_sig = ''
+                    detail_dict = {}
+                    label = -1
+                else:
+                    detail_dict = predict_details(ml_sig,sender)
+                    detail_dict['p_sig'] = ml_sig
+                    label = 1
+                detail_dict['p_has_sig'] = label
+                row.update(detail_dict)
+                writer.writerow(row)
+
+
+
 def find_details(dict,line):
+    splitter = ' ' # ' |&*&| '
     if line[:len(NAME_ANNOTATION)] == NAME_ANNOTATION:
         line = line[len(NAME_ANNOTATION):]
         if dict.get('name'):
-            dict['name'] = dict['name'] + ' |&*&| ' + line
+            dict['name'] = dict['name'] + splitter + line
         else:
             dict['name'] = line
     elif line[:len(TITLE_ANNOTATION)] == TITLE_ANNOTATION:
         line = line[len(TITLE_ANNOTATION):]
         if dict.get('title'):
-            dict['title'] = dict['title'] + ' |&*&| ' + line
+            dict['title'] = dict['title'] + splitter + line
         else:
             dict['title'] = line
     elif line[:len(COMPANY_ANNOTATION)] == COMPANY_ANNOTATION:
         line = line[len(COMPANY_ANNOTATION):]
         if dict.get('company'):
-            dict['company'] = dict['company'] + ' |&*&| ' + line
+            dict['company'] = dict['company'] + splitter + line
         else:
             dict['company'] = line
     elif line[:len(ADDR_ANNOTATION)] == ADDR_ANNOTATION:
         line = line[len(ADDR_ANNOTATION):]
         if dict.get('address'):
-            dict['address'] = dict['address'] + ' |&*&| ' + line
+            dict['address'] = dict['address'] + splitter + line
         else:
             dict['address'] = line
     elif line[:len(NUM_ANNOTATION)] == NUM_ANNOTATION:
         line = line[len(NUM_ANNOTATION):]
         if dict.get('num'):
-            dict['num'] = dict['num'] + ' |&*&| ' + line
+            dict['num'] = dict['num'] + splitter + line
         else:
             dict['num'] = line
     elif line[:len(WORK_ANNOTATION)] == WORK_ANNOTATION:
         line = line[len(WORK_ANNOTATION):]
         if dict.get('work_num'):
-            dict['work_num'] = dict['work_num'] + ' |&*&| ' + line
+            dict['work_num'] = dict['work_num'] + splitter + line
         else:
             dict['work_num'] = line
     elif line[:len(FAX_ANNOTATION)] == FAX_ANNOTATION:
         line = line[len(FAX_ANNOTATION):]
         if dict.get('fax'):
-            dict['fax'] = dict['fax'] + ' |&*&| ' + line
+            dict['fax'] = dict['fax'] + splitter + line
         else:
             dict['fax'] = line
     elif line[:len(EMAIL_ANNOTATION)] == EMAIL_ANNOTATION:
         line = line[len(EMAIL_ANNOTATION):]
         if dict.get('email'):
-            dict['email'] = dict['email'] + ' |&*&| ' + line
+            dict['email'] = dict['email'] + splitter + line
         else:
             dict['email'] = line
     elif line[:len(URL_ANNOTATION)] == URL_ANNOTATION:
         line = line[len(URL_ANNOTATION):]
         if dict.get('url'):
-            dict['url'] = dict['url'] + ' |&*&| ' + line
+            dict['url'] = dict['url'] + splitter + line
         else:
             dict['url'] = line
     elif line[:len(SLOGAN_ANNOTATION)] == SLOGAN_ANNOTATION:
         line = line[len(SLOGAN_ANNOTATION):]
         if dict.get('slogan'):
-            dict['slogan'] = dict['slogan'] + ' |&*&| ' + line
+            dict['slogan'] = dict['slogan'] + splitter + line
         else:
             dict['slogan'] = line
     elif line[:len(QUOTE_ANNOTATION)] == QUOTE_ANNOTATION:
         line = line[len(QUOTE_ANNOTATION):]
         if dict.get('quote'):
-            dict['quote'] = dict['quote'] + ' |&*&| ' + line
+            dict['quote'] = dict['quote'] + splitter + line
         else:
             dict['slogan'] = line
     return dict,line
@@ -616,6 +709,54 @@ def statistics(repetition,filename,src,dest,method):
 
             #print ratio_N2
             return precision, recall, f_score
+
+
+def extract_training_vectors(emails, csv_file, output_extraction_file):
+    with open(output_extraction_file, 'w') as dataset:
+        with open(csv_file,'r') as csvinput:
+            reader = csv.DictReader(csvinput)
+            for row in reader:
+                if row['filename'] not in emails:
+                    continue
+                else:
+                    sender = row['sender']
+                    lines = set(row['origin'].splitlines())
+                    sigs = set(row['sig'].splitlines())
+                    n_sigs = lines - sigs
+                    for line in lines:
+                        label = 0
+                        if line in sigs:
+                            label = 1
+                        X = build_pattern(line, features(sender))
+                        X.append(label)
+                        labeled_pattern = ','.join([str(e) for e in X])
+                        dataset.write(labeled_pattern + '\n')
+
+
+
+def run_test_v2(base_dir):
+    global EXTRACTOR
+    emails_folder = base_dir + '/emails/MTreviewd_Emails/'
+    process_folder = base_dir + '/emails/MTreviewd_Emails_Processed/'
+    csv_file = process_folder + 'results_summary.csv'
+    csv_output = process_folder + 'predict_output'
+    feature_extracion = process_folder + 'feature_extraction'
+    classifier_name = process_folder + 'classifier'
+    iteration = 10
+    repetition = 5
+    emails = get_all_emails(emails_folder)
+    preprocess(emails, emails_folder, csv_file)
+    for i in range(iteration):
+        shuffle(emails)
+        for r in range(repetition):
+            training, testing = split_data(emails,repetition,r)
+            output_extraction = feature_extracion + str(i) + '_' + str(r)
+            extract_training_vectors(training, csv_file, output_extraction)
+            classifier_r = classifier_name + str(i) + '_' + str(r)
+            extraction.EXTRACTOR = train(init(), output_extraction, classifier_r)
+            output_file = csv_output + str(i) + '_' + str(r) + '.csv'
+            csv_predict(testing, csv_file, output_file)
+
 
 def run_test(base_dir):
     start = timeit.default_timer()
